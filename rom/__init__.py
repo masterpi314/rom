@@ -235,10 +235,11 @@ class Column(object):
         if not obj._init:
             self._init_(obj, *value)
             return
-        try:
-            value = self._from_redis(value)
-        except (ValueError, TypeError):
-            raise InvalidColumnValue("Cannot convert %r into type %s"%(value, self._allowed))
+        elif not isinstance(value, self._allowed):
+            try:
+                value = self._from_redis(value)
+            except (ValueError, TypeError):
+                raise InvalidColumnValue("Cannot convert %r into type %s"%(value, self._allowed))
         self._validate(value)
         obj._data[self._attr] = value
         obj._modified = True
@@ -427,7 +428,7 @@ class Text(Column):
         class MyModel(Model):
             col = Text()
     '''
-    _allowed = unicode
+    _allowed = unicode, str
     def _to_redis(self, value):
         return value.encode('utf-8')
     def _from_redis(self, value):
@@ -548,6 +549,10 @@ class ManyToOne(Column):
             value.save()
         v = str(getattr(value, value._pkey))
         return v
+
+    def fmodel(self):
+        '''Return the model of the associated entity'''
+        return MODELS[self._ftable]
 
 class ForeignModel(Column):
     '''
@@ -876,7 +881,7 @@ class Model(object):
         new = self.to_dict()
         ret = self._apply_changes(self._last, new, full or self._new)
         self._new = False
-        self._last = new
+        self._last = {a: self._columns[a]._to_redis(v) if v is not None else v for a, v in new.iteritems()}
         self._modified = False
         return ret
 
@@ -1002,6 +1007,12 @@ class Model(object):
         subsequent filtering.
         '''
         return Query(cls)
+
+    def columns(cls):
+        '''
+        Return list of columns this model has
+        '''
+        return cls._columns
 
 def is_numeric(value):
     try:
