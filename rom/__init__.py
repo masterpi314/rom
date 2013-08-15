@@ -201,6 +201,12 @@ class Column(object):
         if value is not None:
             if isinstance(value, self._allowed):
                 return
+            convert = self._allowed[0] if isinstance(self._allowed, (tuple, list)) else self._allowed
+            try:
+                value = convert(value)
+                return
+            except:
+                pass
         elif not self._required:
             return
         raise InvalidColumnValue("%s.%s has type %r but must be of type %r"%(
@@ -428,7 +434,7 @@ class Text(Column):
         class MyModel(Model):
             col = Text()
     '''
-    _allowed = unicode, str
+    _allowed = unicode
     def _to_redis(self, value):
         return value.encode('utf-8')
     def _from_redis(self, value):
